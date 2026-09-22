@@ -1,0 +1,19 @@
+{
+  "name": "借光 · Borrowed Light",
+  "short_name": "借光",
+  "description": "旋转镜面，点亮小岛，守护三十六个安静的梦。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#10282e",
+  "theme_color": "#11292d",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
