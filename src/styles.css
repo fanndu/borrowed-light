@@ -1596,3 +1596,54 @@ dialog .button {
     min-width: 122px;
   }
 }
+
+.analytics-prompt {
+  position: fixed;
+  z-index: 20;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(850px, calc(100% - 28px));
+  background: #213c3f;
+  border: 1px solid #a6ba9370;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px #0007;
+  padding: 16px 20px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.analytics-prompt strong {
+  font-size: 13px;
+  color: var(--gold);
+}
+.analytics-prompt p {
+  font-size: 11px;
+  margin: 5px 0 0;
+  color: #bccac1;
+}
+.analytics-prompt .text-button {
+  font-size: 11px;
+  padding: 0;
+}
+.analytics-choices {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.analytics-choices .button {
+  font-size: 11px;
+  padding: 11px 13px;
+  min-height: 42px;
+}
+@media (max-width: 760px) {
+  .analytics-prompt {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px;
+  }
+  .analytics-choices .button {
+    flex: 1;
+  }
+}

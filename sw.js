@@ -1,8 +1,9 @@
-const CACHE = "borrowed-light-1.0.0-42b0c10a3719";
+const CACHE = "borrowed-light-1.0.1-9629e03ffbb3";
 const FILES = [
   "./",
   "./index.html",
   "./src/app.js",
+  "./src/analytics.js",
   "./src/styles.css",
   "./src/audio.js",
   "./src/board.js",

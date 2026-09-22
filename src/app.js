@@ -1,3 +1,4 @@
+import { createAnalytics } from "./analytics.js";
 import { levels } from "./levels.js";
 import { evaluate, initialState, solve } from "./engine.js";
 import {
@@ -10,6 +11,7 @@ import {
 import { renderBoard, harborArt, icon } from "./board.js";
 import { playSound } from "./audio.js";
 const $ = (s) => document.querySelector(s);
+const analytics = createAnalytics(window);
 const escape = (s) =>
   String(s ?? "").replace(
     /[&<>"']/g,
@@ -102,13 +104,41 @@ function footer() {
 }
 function render(focusKey) {
   applySettings();
-  app.innerHTML = `<div class="app-shell">${header()}${screen === "home" ? homeView() : screen === "map" ? mapView() : screen === "ending" ? endingView() : gameView()}${footer()}</div>`;
+  app.innerHTML = `<div class="app-shell">${header()}${screen === "home" ? homeView() : screen === "map" ? mapView() : screen === "ending" ? endingView() : gameView()}${footer()}${analyticsPrompt()}</div>`;
   if (focusKey) {
     const e = [...document.querySelectorAll("[data-mirror]")].find(
       (e) => e.dataset.mirror === focusKey,
     );
     e?.focus({ preventScroll: true });
   }
+}
+function analyticsPrompt() {
+  if (!analytics.available || analytics.consent !== null) return "";
+  return `<aside class="analytics-prompt" aria-label="可选使用统计"><div><strong>帮助我们把小岛做得更好？</strong><p>允许 Google Analytics 统计访问来源与关卡进度。拒绝不影响游玩，设置中可随时修改。 <button class="text-button" data-action="privacy">统计说明</button></p></div><div class="analytics-choices"><button class="button secondary" data-action="analytics-deny">暂不 / No thanks</button><button class="button primary" data-action="analytics-allow">允许 / Allow</button></div></aside>`;
+}
+function trackStart() {
+  const l = current();
+  if (!l || screen !== "game") return;
+  analytics.track("game_started", {}, true);
+  analytics.track(
+    "level_started",
+    {
+      level_id: l.id,
+      chapter: l.chapter + 1,
+      is_replay: !!store.data.completed[l.id],
+    },
+    true,
+  );
+}
+function changeAnalytics(value) {
+  analytics.setConsent(value);
+  render();
+  if (value) trackStart();
+}
+function privacy() {
+  modal(
+    `<p class="eyebrow">YOUR CHOICE</p><h2>可选使用统计</h2><p>只有你允许后，线上版本才会加载 Google Analytics，帮助我们了解访问来源、开始游玩、关卡完成、尝试失败和提示使用情况。拒绝后游戏功能保持完整，离线文件不发送统计。</p><p>统计会使用 Cookie 区分浏览器，Google 可能处理设备信息和近似地区；本游戏不发送姓名、邮箱、存档内容或任意网址参数，不启用广告个性化。游戏专用统计 Cookie 最长保留60天。</p><p>可在设置中关闭统计，停止后续发送并删除本游戏的统计 Cookie。本机存档不会被删除。统计只代表参与者，不能当作全部玩家人数。</p><p><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google 隐私权政策</a> · <a href="https://x.com/frankd992133231" target="_blank" rel="noopener noreferrer">联系开发者 Frank</a></p><button class="button primary" data-action="close">明白了</button>`,
+  );
 }
 function homeView() {
   const done = completedCount(),
@@ -212,6 +242,7 @@ function goLevel(id, resume = false) {
   screen = "game";
   persist();
   render();
+  trackStart();
   $("#main").focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
@@ -262,13 +293,29 @@ function fire() {
   hintKey = null;
   result = evaluate(l, a.orientation);
   if (result.won) {
+    const newSubmission = !a.submitted;
+    const replay = !!store.data.completed[l.id];
     a.submitted = true;
     const earned = recordWin(store.data, l.id, a.moves, a.hints, l.par);
     if (!persist()) return;
+    if (newSubmission)
+      analytics.track("level_completed", {
+        level_id: l.id,
+        chapter: l.chapter + 1,
+        moves: a.moves,
+        hints: a.hints,
+        stars: earned,
+        is_replay: replay,
+      });
     render();
     sound("success");
     showWin(l, earned);
   } else {
+    analytics.track("puzzle_failed", {
+      level_id: l.id,
+      chapter: l.chapter + 1,
+      moves: a.moves,
+    });
     sound(result.hit.length ? "fail" : "fire");
     render();
     announce(
@@ -287,7 +334,7 @@ function showWin(l, stars) {
 }
 function settings() {
   modal(
-    `<p class="eyebrow">MAKE YOURSELF AT HOME</p><h2>旅途设置</h2><div class="settings-row"><div><strong>轻声回应</strong><small>旋转与点亮时播放音效</small></div><button role="switch" aria-checked="${store.data.settings.sound}" aria-label="音效" class="switch" data-action="toggle-sound"><span></span></button></div><div class="settings-row"><div><strong>让画面静下来</strong><small>减少装饰动画与过渡</small></div><button role="switch" aria-checked="${store.data.settings.reducedMotion}" aria-label="减少动态" class="switch" data-action="toggle-motion"><span></span></button></div><div class="save-panel"><p><strong>你的旅程</strong><span>${completedCount()} / ${levels.length} 关 · ${totalStars()} 颗星</span></p><p class="small-copy">${store.available ? "进度自动保存在此浏览器。清除网站数据或更换设备会失去本机记录，建议定期导出备份。" : escape(store.warning)}</p><div class="modal-actions"><button class="button secondary" data-action="export">导出进度</button><button class="button secondary" data-action="import">导入进度</button></div></div><button class="danger-link" data-action="clear-save">清除全部进度</button>`,
+    `<p class="eyebrow">MAKE YOURSELF AT HOME</p><h2>旅途设置</h2><div class="settings-row"><div><strong>轻声回应</strong><small>旋转与点亮时播放音效</small></div><button role="switch" aria-checked="${store.data.settings.sound}" aria-label="音效" class="switch" data-action="toggle-sound"><span></span></button></div><div class="settings-row"><div><strong>让画面静下来</strong><small>减少装饰动画与过渡</small></div><button role="switch" aria-checked="${store.data.settings.reducedMotion}" aria-label="减少动态" class="switch" data-action="toggle-motion"><span></span></button></div><div class="settings-row"><div><strong>帮助改进游戏</strong><small>${analytics.available ? "允许基础使用统计，可随时关闭" : "此版本不发送统计"}</small></div><button role="switch" aria-checked="${analytics.consent === true}" aria-label="使用统计" class="switch" data-action="toggle-analytics" ${analytics.available ? "" : "disabled"}><span></span></button></div><button class="text-button" data-action="privacy">统计与隐私说明</button><div class="save-panel"><p><strong>你的旅程</strong><span>${completedCount()} / ${levels.length} 关 · ${totalStars()} 颗星</span></p><p class="small-copy">${store.available ? "进度自动保存在此浏览器。清除网站数据或更换设备会失去本机记录，建议定期导出备份。" : escape(store.warning)}</p><div class="modal-actions"><button class="button secondary" data-action="export">导出进度</button><button class="button secondary" data-action="import">导入进度</button></div></div><button class="danger-link" data-action="clear-save">清除全部进度</button>`,
   );
 }
 function help() {
@@ -310,6 +357,14 @@ function exportSave() {
   toast("已生成进度备份，请保留下载的 JSON 文件。");
 }
 const actions = {
+  privacy,
+  "analytics-allow": () => changeAnalytics(true),
+  "analytics-deny": () => changeAnalytics(false),
+  "toggle-analytics": () => {
+    changeAnalytics(analytics.consent !== true);
+    settings();
+    $("[data-action=toggle-analytics]").focus();
+  },
   home: () => {
     closeModal();
     screen = "home";
@@ -363,6 +418,11 @@ const actions = {
     if (!solution) return toast("没有找到可行光路，请重置这一关后重试。");
     if (solution.distance === 0) return toast("光路已经准备好了，试着送出光。");
     store.data.active.hints++;
+    analytics.track("hint_requested", {
+      level_id: l.id,
+      chapter: l.chapter + 1,
+      hints: store.data.active.hints,
+    });
     hintKey = solution.moves[0];
     persist();
     render(hintKey);
@@ -399,7 +459,7 @@ const actions = {
     ),
   about: () =>
     modal(
-      '<p class="eyebrow">BORROWED LIGHT · VERSION 1.0.0</p><h2>一场安静的夜行</h2><p>《借光》是一款原创光路解谜游戏。36 个关卡，6 个章节，一束需要你照顾的光。</p><p>游戏使用原创矢量画面与合成音效，无广告、无账号，不收集游戏数据。联网打开并完成缓存后，可离线继续游玩。</p><p class="small-copy">作品由人类与 AI 协作完成。所有游戏判断都在本机运行。进度保存在浏览器，请定期导出备份。</p><button class="button primary" data-action="close">愿你一路有光</button>',
+      '<p class="eyebrow">BORROWED LIGHT · VERSION 1.0.1</p><h2>一场安静的夜行</h2><p>《借光》是一款原创光路解谜游戏。36 个关卡，6 个章节，一束需要你照顾的光。</p><p>游戏使用原创矢量画面与合成音效，无广告、无账号。仅在你允许时发送基础使用统计，可在设置中随时关闭。联网打开并完成缓存后，可离线继续游玩。</p><p class="small-copy">作品由人类与 AI 协作完成。所有游戏判断都在本机运行。进度保存在浏览器，请定期导出备份。</p><button class="button primary" data-action="close">愿你一路有光</button>',
     ),
 };
 document.addEventListener("click", (e) => {
@@ -479,7 +539,11 @@ window.addEventListener("storage", (e) => {
 });
 render();
 if (!store.available) toast(store.warning);
-if ("serviceWorker" in navigator && location.protocol !== "file:")
+if (
+  "serviceWorker" in navigator &&
+  location.protocol !== "file:" &&
+  document.querySelector('link[rel="manifest"]')
+)
   window.addEventListener("load", () =>
     navigator.serviceWorker.register("./sw.js").catch(() => {}),
   );
